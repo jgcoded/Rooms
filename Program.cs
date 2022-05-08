@@ -17,14 +17,13 @@ using p2p_api.Workers;
 var builder = WebApplication.CreateBuilder(args);
 
 const string CorsPolicyName = "P2PApiCorsPolicy";
-var allowedCorsOrigins = builder.Configuration["AllowedCorsOrigins"]?.Split(',');
+var allowedCorsOrigins = builder.Configuration["AllowedCorsOrigins"]?.Split(',') ?? new string[] {};
 builder.Services.AddCors(options => {
     options.AddPolicy(CorsPolicyName, policy =>
     {
-        if (allowedCorsOrigins is not null)
-        {
-            policy.WithOrigins(allowedCorsOrigins);
-        }
+        policy.AllowAnyMethod();
+        policy.AllowAnyHeader();
+        policy.WithOrigins(allowedCorsOrigins);
     });
 });
 
