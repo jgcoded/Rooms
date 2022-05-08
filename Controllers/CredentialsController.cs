@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Options;
+using p2p_api.Extensions;
 using p2p_api.Models;
 
 namespace p2p_api.Controllers;
@@ -33,9 +34,8 @@ public class CredentialsController : ControllerBase
     [HttpGet(Name = "GetCredentials")]
     public Credentials Get()
     {
-        string id = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? throw new UnauthorizedAccessException();
-        const string Country = "country";
-        string country = User.FindFirst(Country)?.Value ?? throw new UnauthorizedAccessException();
+        string id = User.UserId();
+        string country = User.Country();
 
         if (!string.Equals(country, "United States", StringComparison.InvariantCultureIgnoreCase))
         {
