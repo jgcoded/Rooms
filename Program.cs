@@ -16,6 +16,18 @@ using p2p_api.Workers;
 
 var builder = WebApplication.CreateBuilder(args);
 
+const string CorsPolicyName = "P2PApiCorsPolicy";
+var allowedCorsOrigins = builder.Configuration["AllowedCorsOrigins"]?.Split(',');
+builder.Services.AddCors(options => {
+    options.AddPolicy(CorsPolicyName, policy =>
+    {
+        if (allowedCorsOrigins is not null)
+        {
+            policy.WithOrigins(allowedCorsOrigins);
+        }
+    });
+});
+
 // Add services to the container.
 builder.Services.Configure<CookiePolicyOptions>(options =>
 {
@@ -97,6 +109,8 @@ app.UseHttpsRedirection();
 
 app.UseCookiePolicy();
 app.UseRouting();
+
+app.UseCors(CorsPolicyName);
 
 app.UseAuthentication();
 app.UseAuthorization();
