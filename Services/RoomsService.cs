@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Lib.AspNetCore.ServerSentEvents;
 
 namespace p2p_api.Services;
 
@@ -13,6 +14,37 @@ public class RoomsService
             100 // preallocate 100 roomUser keys
         );
     }
+
+    public static Action<IServerSentEventsService, ServerSentEventsClientConnectedArgs> OnClientConnected { get; } =
+        (service, args) =>
+        {
+            string? roomName = args.Request.RouteValues["roomName"] as string;
+            string userId = args.Request.Query["id"];
+
+            if (roomName is null || string.IsNullOrWhiteSpace(userId))
+            {
+                args.Client.Disconnect();
+                return;
+            }
+
+            var roomsService = args.Request.HttpContext.RequestServices.GetRequiredService<RoomsService>();
+            roomsService.AddUserToRoom(roomName, userId);
+            service.AddToGroup(roomName, args.Client);
+        };
+
+    public static Action<IServerSentEventsService, ServerSentEventsClientDisconnectedArgs> OnClientDisconnected { get; } =
+        (service, args) =>
+        {
+            string? roomName = args.Request.RouteValues["roomName"] as string;
+
+            if (roomName is null)
+            {
+                return;
+            }
+
+            var roomsService = args.Request.HttpContext.RequestServices.GetRequiredService<RoomsService>();
+           // roomsService.RemoveUserFromRoom(roomName, args.Client.User.UserId());
+        };
 
     public void AddUserToRoom(string roomName, string userId)
     {

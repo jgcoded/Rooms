@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Identity.Web.Resource;
+
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -50,12 +52,7 @@ public class CredentialsController : ControllerBase
         int expiryTime = (int)(DateTime.UtcNow - DateTime.UnixEpoch).Add(this.ttl).TotalSeconds;
         string username = $"{expiryTime}:{id}";
 
-        var secretBytes = Encoding.ASCII.GetBytes(databaseSecret.Data);
-        var userBytes = Encoding.ASCII.GetBytes(username);
-
-        var hmacSha = new HMACSHA1(secretBytes);
-        var signatureBytes = hmacSha.ComputeHash(userBytes);
-        string signature = System.Convert.ToBase64String(signatureBytes);
+        string signature = username.HashSHA1(this.databaseSecret.Data);
 
         return new Credentials
         {
