@@ -19,19 +19,12 @@ public class RoomsController : ControllerBase
         this.sseService = sseService;
     }
 
-    [Authorize]
+    [Authorize("UserInRoom")]
     [Route("{roomName:required}")]
     [HttpPost]
     public ActionResult Post(string roomName, object data)
     {
-        // User can only send to rooms they have joined
-        if (!this.roomsService.IsUserInRoom(roomName, User.UserId()))
-        {
-            return Unauthorized();
-        }
-
         this.sseService.SendEventAsync(roomName, data.ToString());
-
         return Ok();
     }
 }

@@ -3,11 +3,15 @@ using Lib.AspNetCore.ServerSentEvents;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Identity.Web;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Primitives;
+using Microsoft.AspNetCore.Authorization;
 
+using p2p_api.Authorization;
 using p2p_api.Extensions;
 using p2p_api.Models;
 using p2p_api.Providers;
@@ -35,8 +39,68 @@ builder.Services.Configure<CookiePolicyOptions>(options =>
     options.HandleSameSiteCookieCompatibility();
 });
 
-builder.Services.AddMicrosoftIdentityWebAppAuthentication(builder.Configuration, "AzureAdB2C");
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    // Adds Microsoft Identity platform (Azure AD B2C) support to protect this Api
+    .AddMicrosoftIdentityWebApi(options =>
+    {
+        builder.Configuration.Bind("AzureAdB2C", options);
+        options.TokenValidationParameters.NameClaimType = "name";
 
+        options.Events = new JwtBearerEvents()
+        {
+            OnMessageReceived = context =>
+            {
+                StringValues values;
+
+                if (!context.Request.Query.TryGetValue("access_token", out values))
+                {
+                    return Task.CompletedTask;
+                }
+
+                if (values.Count > 1)
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    context.Fail(
+                        "Only one 'access_token' query string parameter can be defined. " +
+                        $"However, {values.Count:N0} were included in the request."
+                    );
+
+                    return Task.CompletedTask;
+                }
+
+                var token = values.Single();
+
+                if (String.IsNullOrWhiteSpace(token))
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    context.Fail(
+                        "The 'access_token' query string parameter was defined, " +
+                        "but a value to represent the token was not included."
+                    );
+
+                    return Task.CompletedTask;
+                }
+
+                context.Token = token;
+
+                return Task.CompletedTask;
+            }
+        };
+    },
+    options =>
+    {
+        builder.Configuration.Bind("AzureAdB2C", options);
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("UserInRoom", policy => {
+        policy.RequireAuthenticatedUser();
+        policy.AddRequirements(new UserInRoomRequirement());
+    });
+});
+
+builder.Services.AddSingleton<IAuthorizationHandler, UserInRoomAuthorizationHandler>();
 builder.Services.AddSingleton<RoomsService>();
 builder.Services.AddSingleton<ReferenceHolder>();
 builder.Services.AddHostedService<DatabaseWorker>();
@@ -53,34 +117,8 @@ builder.Services.Configure<DatabaseWorkerOptions>(builder.Configuration.GetSecti
 
 builder.Services.AddServerSentEvents(options =>
 {
-    options.OnClientConnected = (service, args) =>
-    {
-        string? roomName = args.Request.RouteValues["roomName"] as string;
-
-        if (roomName is null)
-        {
-            args.Client.Disconnect();
-            return;
-        }
-
-        var roomsService = args.Request.HttpContext.RequestServices.GetRequiredService<RoomsService>();
-        roomsService.AddUserToRoom(roomName, args.Client.User.UserId());
-        service.AddToGroup(roomName, args.Client);
-    };
-
-    options.OnClientDisconnected = (service, args) =>
-    {
-        string? roomName = args.Request.RouteValues["roomName"] as string;
-
-        if (roomName is null)
-        {
-            return;
-        }
-
-        var roomsService = args.Request.HttpContext.RequestServices.GetRequiredService<RoomsService>();
-        roomsService.RemoveUserFromRoom(roomName, args.Client.User.UserId());
-    };
-
+    options.OnClientConnected = RoomsService.OnClientConnected;
+    options.OnClientDisconnected = RoomsService.OnClientDisconnected;
     options.KeepaliveMode = ServerSentEventsKeepaliveMode.Always;
     options.KeepaliveInterval = 60;
 });
@@ -129,7 +167,7 @@ app.UseEndpoints(endpoints =>
             response.Headers.Append("Cache-Control", "no-cache");
             response.Headers.Append("X-Accel-Buffering", "no");
         }
-    }).RequireAuthorization();
+    });
 });
 
 app.Run();
