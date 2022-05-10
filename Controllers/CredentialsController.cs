@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Identity.Web.Resource;
 
@@ -13,6 +14,7 @@ namespace p2p_api.Controllers;
 
 [ApiController]
 [Route("")]
+[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 public class CredentialsController : ControllerBase
 {
     private readonly TimeSpan ttl;

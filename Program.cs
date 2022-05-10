@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Identity.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-
+using Microsoft.Extensions.Primitives;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 
@@ -42,33 +42,95 @@ builder.Services.Configure<CookiePolicyOptions>(options =>
     options.HandleSameSiteCookieCompatibility();
 });
 
-// Adds Microsoft Identity platform (Azure AD B2C) support to protect this Api
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddScheme<AuthenticationSchemeOptions, SSEAuthenticationHandler>(SSEAuthenticationScheme.SchemeName, null)
+    //.AddScheme<AuthenticationSchemeOptions, SSEAuthenticationHandler>(SSEAuthenticationScheme.SchemeName, null)
+    // Adds Microsoft Identity platform (Azure AD B2C) support to protect this Api
     .AddMicrosoftIdentityWebApi(options =>
     {
         builder.Configuration.Bind("AzureAdB2C", options);
         options.TokenValidationParameters.NameClaimType = "name";
+
+        options.Events = new JwtBearerEvents()
+        {
+            OnMessageReceived = context =>
+            {
+                StringValues values;
+
+                if (!context.Request.Query.TryGetValue("access_token", out values))
+                {
+                    return Task.CompletedTask;
+                }
+
+                if (values.Count > 1)
+                {
+                    context.Response.StatusCode = 401;
+                    context.Fail(
+                        "Only one 'access_token' query string parameter can be defined. " +
+                        $"However, {values.Count:N0} were included in the request."
+                    );
+
+                    return Task.CompletedTask;
+                }
+
+                var token = values.Single();
+
+                if (String.IsNullOrWhiteSpace(token))
+                {
+                    context.Response.StatusCode = 401;
+                    context.Fail(
+                        "The 'access_token' query string parameter was defined, " +
+                        "but a value to represent the token was not included."
+                    );
+
+                    return Task.CompletedTask;
+                }
+
+                context.Token = token;
+
+                return Task.CompletedTask;
+            }
+        };
+        /* options.ForwardDefaultSelector = context => {
+             if (context.Request.Query.ContainsKey("t"))
+                 return SSEAuthenticationScheme.SchemeName;
+             else
+                 return JwtBearerDefaults.AuthenticationScheme;
+         };*/
     },
     options =>
     {
         builder.Configuration.Bind("AzureAdB2C", options);
+        /* options.ForwardDefaultSelector = context => {
+             if (context.Request.Query.ContainsKey("t"))
+                 return SSEAuthenticationScheme.SchemeName;
+             else
+                 return JwtBearerDefaults.AuthenticationScheme;
+         };*/
     });
-// End of the Microsoft Identity platform block
 
 const string SSEAuthorizationPolicy = "SSEAuthorizationPolicy";
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy(SSEAuthorizationPolicy, policy => {
-        policy.AddAuthenticationSchemes(SSEAuthenticationScheme.SchemeName);
-        policy.AddRequirements(new SSEAuthorizationRequirement());
-    });
+    /*
+        options.AddPolicy(SSEAuthorizationPolicy, policy => {
+            policy.AddAuthenticationSchemes(SSEAuthenticationScheme.SchemeName);
+            policy.RequireAuthenticatedUser();
+            policy.AddRequirements(new SSEAuthorizationRequirement());
+        });*/
+    /*
+        var defaultAuthorizationPolicyBuilder = new AuthorizationPolicyBuilder(
+            JwtBearerDefaults.AuthenticationScheme,
+            SSEAuthenticationScheme.SchemeName);
+        defaultAuthorizationPolicyBuilder =
+            defaultAuthorizationPolicyBuilder.RequireAuthenticatedUser();
+        options.DefaultPolicy = defaultAuthorizationPolicyBuilder.Build();
+        */
 });
 
 builder.Services.AddSingleton<RoomsService>();
 builder.Services.AddSingleton<ReferenceHolder>();
 builder.Services.AddHostedService<DatabaseWorker>();
-builder.Services.AddSingleton<IAuthenticationHandler, SSEAuthenticationHandler>();
+//builder.Services.AddSingleton<IAuthenticationHandler, SSEAuthenticationHandler>();
 
 builder.Services.AddControllers();
 
@@ -124,12 +186,13 @@ app.UseEndpoints(endpoints =>
         pattern: "{controller=Credentials}/{action=GetCredentials}"
     );
 
-    endpoints.MapServerSentEvents("/rooms/{roomName:required}", new ServerSentEventsOptions
+    endpoints.MapServerSentEvents("/sse/{roomName:required}", new ServerSentEventsOptions
     {
-        Authorization = new ServerSentEventsAuthorization
+        Authorization = ServerSentEventsAuthorization.Default,
+        /* new ServerSentEventsAuthorization
         {
             Policy = SSEAuthorizationPolicy
-        },
+        },*/
         OnPrepareAccept = response =>
         {
             response.Headers.Append("Cache-Control", "no-cache");

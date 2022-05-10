@@ -9,6 +9,17 @@ public class SSEAuthorizationHandler : AuthorizationHandler<SSEAuthorizationRequ
         AuthorizationHandlerContext context,
         SSEAuthorizationRequirement requirement)
     {
+        // Resource is guaranteed to be HttpContext in Asp.NET
+        var httpContext = context.Resource as HttpContext ?? throw new Exception();
+        string? desiredRoom = httpContext.Request.RouteValues["roomName"] as string;
+
+        if (desiredRoom is not null && context.User.HasClaim("RoomName", desiredRoom) )
+        {
+            context.Fail();
+            return Task.CompletedTask;
+        }
+
+        context.Fail();
         return Task.CompletedTask;
     }
 }

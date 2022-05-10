@@ -23,9 +23,11 @@ public static class CryptographicExtensions
         return System.Convert.ToBase64String(signatureBytes);
     }
 
-    public static string Encrypt(this RoomToken roomToken)
+    public static async Task<string> Encrypt(this RoomToken roomToken)
     {
-        using (Aes aes = Aes.Create())
+        string json = JsonSerializer.Serialize(roomToken);
+
+        using (var aes = Aes.Create())
         {
             if (aesKey == null)
             {
@@ -33,25 +35,38 @@ public static class CryptographicExtensions
                 aesIV = aes.IV;
             }
 
-            string json = JsonSerializer.Serialize(roomToken);
-
             using (var memory = new MemoryStream())
-            using (var cryptoStream = new CryptoStream(memory,aes.CreateEncryptor(), CryptoStreamMode.Write))
-            using (var encryptWriter = new StreamWriter(cryptoStream))
             {
-                encryptWriter.Write(json);
-                memory.Seek(0, SeekOrigin.Begin);
-
-                // Read the first 20 bytes from the stream.
-                var bytes = new byte[memory.Length];
-                return System.Convert.ToBase64String(bytes);
+                using (var cryptoStream = new CryptoStream(memory, aes.CreateEncryptor(aesKey, aesIV), CryptoStreamMode.Write))
+                using (var encryptWriter = new StreamWriter(cryptoStream))
+                {
+                    await encryptWriter.WriteAsync(json);
+                    await encryptWriter.FlushAsync();
+                    await cryptoStream.FlushFinalBlockAsync();
+                    memory.Seek(0, SeekOrigin.Begin);
+                    var bytes = new byte[memory.Length];
+                    int count = await memory.ReadAsync(bytes, 0, (int)memory.Length);
+                    return System.Convert.ToBase64String(bytes);
+                }
             }
         }
     }
 
-    public static RoomToken DecryptToRoomToken(string data)
+    public static async Task<RoomToken?> DecryptToRoomToken(this string data)
     {
-        // TODO https://docs.microsoft.com/en-us/dotnet/standard/security/decrypting-data
-        throw new NotImplementedException();
+        if (aesKey == null)
+        {
+            throw new InvalidOperationException();
+        }
+    
+        using (var aes = Aes.Create())
+        {
+            using (var memory = new MemoryStream(System.Convert.FromBase64String(data)))
+            using (var cryptoStream = new CryptoStream(memory, aes.CreateDecryptor(aesKey, aesIV), CryptoStreamMode.Read))
+            using (var decryptReader = new StreamReader(cryptoStream))
+            {
+                return await JsonSerializer.DeserializeAsync<RoomToken>(decryptReader.BaseStream);
+            }
+        }
     }
 }

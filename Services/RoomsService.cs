@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using Lib.AspNetCore.ServerSentEvents;
 
+using p2p_api.Extensions;
+
 namespace p2p_api.Services;
 
 public class RoomsService
@@ -19,7 +21,7 @@ public class RoomsService
         (service, args) =>
         {
             string? roomName = args.Request.RouteValues["roomName"] as string;
-            string userId = args.Request.Query["id"];
+            string userId = args.Client.User.UserId();
 
             if (roomName is null || string.IsNullOrWhiteSpace(userId))
             {
@@ -43,7 +45,7 @@ public class RoomsService
             }
 
             var roomsService = args.Request.HttpContext.RequestServices.GetRequiredService<RoomsService>();
-           // roomsService.RemoveUserFromRoom(roomName, args.Client.User.UserId());
+            roomsService.RemoveUserFromRoom(roomName, args.Client.User.UserId());
         };
 
     public void AddUserToRoom(string roomName, string userId)

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Lib.AspNetCore.ServerSentEvents;
 
@@ -14,9 +15,9 @@ namespace p2p_api.Controllers;
 
 [ApiController]
 [Route("rooms")]
+[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 public class RoomsController : ControllerBase
 {
-
     private RoomsService roomsService;
     private readonly IServerSentEventsService sseService;
     public RoomsController(RoomsService roomsService, IServerSentEventsService sseService)
@@ -25,7 +26,6 @@ public class RoomsController : ControllerBase
         this.sseService = sseService;
     }
 
-    [Authorize]
     [Route("{roomName:required}/message")]
     [HttpPost]
     public ActionResult PostMessage(string roomName, object data)
@@ -41,10 +41,9 @@ public class RoomsController : ControllerBase
         return Ok();
     }
 
-    [Authorize]
     [Route("{roomName:required}/token")]
     [HttpGet]
-    public ActionResult GetRoomToken(string roomName)
+    public async Task<ActionResult> GetRoomToken(string roomName)
     {
         int tokenExpirySeconds = 300;
         var expiry = DateTime.UtcNow.AddSeconds(tokenExpirySeconds);
@@ -55,18 +54,21 @@ public class RoomsController : ControllerBase
             Expiry = expiry
         };
 
-        var token = roomToken.Encrypt();
-
-        string roomUrl = new UriBuilder(Request.Host.Value)
+        string token = await roomToken.Encrypt();
+        string roomUrl = new UriBuilder()
         {
-            Path = $"rooms/{roomName}",
-            Query = QueryString.Create("t", token).Value
+            Scheme = Request.Scheme,
+            Host = Request.Host.Host,
+            Port = Request.Host.Port ?? 443,
+            Path = $"sse/{roomName}",
+            //Query = "t={System.Web.HttpUtility.UrlEncode(token)}"
         }.ToString();
 
         return Ok(new
         {
+            roomUrl,
+            token,
             expiry,
-            roomUrl
         });
     }
 }
