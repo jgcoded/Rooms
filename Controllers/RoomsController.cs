@@ -60,8 +60,8 @@ public class RoomsController : ControllerBase
             Scheme = Request.Scheme,
             Host = Request.Host.Host,
             Port = Request.Host.Port ?? 443,
-            Path = $"sse/{roomName}",
-            //Query = "t={System.Web.HttpUtility.UrlEncode(token)}"
+            Path = $"rooms/{roomName}",
+            Query = $"t={System.Web.HttpUtility.UrlEncode(token)}"
         }.ToString();
 
         return Ok(new

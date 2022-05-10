@@ -15,11 +15,10 @@ public class SSEAuthorizationHandler : AuthorizationHandler<SSEAuthorizationRequ
 
         if (desiredRoom is not null && context.User.HasClaim("RoomName", desiredRoom) )
         {
-            context.Fail();
+            context.Succeed(requirement);
             return Task.CompletedTask;
         }
 
-        context.Fail();
         return Task.CompletedTask;
     }
 }
