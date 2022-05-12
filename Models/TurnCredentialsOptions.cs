@@ -1,9 +1,9 @@
 
 namespace p2p_api.Models;
 
-public class CredentialsOptions
+public class TurnCredentialsOptions
 {
-    public const string Credentials = "Credentials";
+    public const string TurnCredentials = "TurnCredentials";
 
     public string DatabaseConnectionString { get; set; } = string.Empty;
 

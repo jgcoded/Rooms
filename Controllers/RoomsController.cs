@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Options;
 using Lib.AspNetCore.ServerSentEvents;
 
 using System.Security.Cryptography;
@@ -15,60 +16,85 @@ namespace p2p_api.Controllers;
 
 [ApiController]
 [Route("rooms")]
-[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+[Authorize]
 public class RoomsController : ControllerBase
 {
-    private RoomsService roomsService;
+    private RoomService roomsService;
+    private RoomTokenService roomsTokenService;
+    private TurnCredentialsService turnCredentialsService;
     private readonly IServerSentEventsService sseService;
-    public RoomsController(RoomsService roomsService, IServerSentEventsService sseService)
+
+    public RoomsController(
+        RoomService roomsService,
+        RoomTokenService roomsTokenService,
+        TurnCredentialsService turnCredentialsService,
+        IServerSentEventsService sseService)
     {
         this.roomsService = roomsService;
+        this.roomsTokenService = roomsTokenService;
+        this.turnCredentialsService = turnCredentialsService;
         this.sseService = sseService;
     }
 
-    [Route("{roomName:required}/message")]
+    [Route("{roomId:guid:required}")]
     [HttpPost]
-    public ActionResult PostMessage(string roomName, object data)
+    public ActionResult PostMessage(Guid roomId, object data)
     {
         // User can only send to rooms they have joined
-        if (!this.roomsService.IsUserInRoom(roomName, User.UserId()))
+        if (!this.roomsService.IsUserInRoom(roomId, User.UserId()))
         {
             return Unauthorized();
         }
 
-        this.sseService.SendEventAsync(roomName, data.ToString());
+        this.sseService.SendEventAsync(roomId.ToString(), data.ToString());
 
         return Ok();
     }
 
-    [Route("{roomName:required}/token")]
-    [HttpGet]
-    public async Task<ActionResult> GetRoomToken(string roomName)
+    [Route("")]
+    [HttpPost]
+    public ActionResult PostReserveRoom()
     {
-        int tokenExpirySeconds = 300;
-        var expiry = DateTime.UtcNow.AddSeconds(tokenExpirySeconds);
-        var roomToken = new RoomToken
+        string userId = User.UserId();
+        string country = User.Country();
+
+        if (!string.Equals(country, "United States", StringComparison.InvariantCultureIgnoreCase))
         {
-            RoomName = roomName,
-            UserId = User.UserId(),
-            Expiry = expiry
+            throw new UnauthorizedAccessException();
+        }
+
+        Guid roomId = this.roomsService.ReserveRoom(userId);
+
+        var claims = new RoomClaims()
+        {
+            RoomId = roomId,
+            UserId = userId,
+            UserRole = RoomService.RoomOwner
         };
 
-        string token = await roomToken.Encrypt();
-        string roomUrl = new UriBuilder()
+        string jwt = this.roomsTokenService.CreateJwt(claims);
+
+        var uriBuilder = new UriBuilder()
         {
             Scheme = Request.Scheme,
             Host = Request.Host.Host,
             Port = Request.Host.Port ?? 443,
-            Path = $"rooms/{roomName}",
-            Query = $"t={System.Web.HttpUtility.UrlEncode(token)}"
-        }.ToString();
+            Path = $"rooms/{roomId}",
+            Query = RoomTokenService.GetTokenQueryParameter(jwt).ToString()
+        };
+
+        string roomUrl = uriBuilder.ToString();
+
+        uriBuilder.Query = null;
+        string messageUrl = uriBuilder.ToString();
+
+        TurnCredentials turnCredentials = this.turnCredentialsService.CreateTurnCredentials(userId);
 
         return Ok(new
         {
             roomUrl,
-            token,
-            expiry,
+            messageUrl,
+            turnCredentials
         });
     }
 }
