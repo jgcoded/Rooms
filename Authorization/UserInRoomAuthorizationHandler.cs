@@ -3,22 +3,16 @@
 using Microsoft.AspNetCore.Authorization;
 
 using p2p_api.Extensions;
+using p2p_api.Models;
 using p2p_api.Services;
 
 namespace p2p_api.Authorization;
 
-
-using Microsoft.AspNetCore.Authorization;
-
-public class UserInRoomRequirement : IAuthorizationRequirement
-{
-}
-
 public class UserInRoomAuthorizationHandler : AuthorizationHandler<UserInRoomRequirement>
 {
-    private readonly RoomsService roomsService;
+    private readonly RoomService roomsService;
 
-    public UserInRoomAuthorizationHandler(RoomsService roomsService)
+    public UserInRoomAuthorizationHandler(RoomService roomsService)
     {
         this.roomsService = roomsService;
     }
@@ -29,15 +23,18 @@ public class UserInRoomAuthorizationHandler : AuthorizationHandler<UserInRoomReq
     {
         // Resource is guaranteed to be HttpContext in Asp.NET
         var httpContext = context.Resource as HttpContext ?? throw new Exception();
-        string? desiredRoom = httpContext.Request.RouteValues["roomName"] as string;
+        string? roomId = httpContext.Request.RouteValues[nameof(RoomClaims.RoomId)] as string;
 
-        if (desiredRoom is not null && this.roomsService.IsUserInRoom(desiredRoom, context.User.UserId()) )
+        if (string.IsNullOrWhiteSpace(roomId))
         {
-            context.Succeed(requirement);
             return Task.CompletedTask;
         }
 
-        //context.Fail();
+        if (this.roomsService.IsUserInRoom(Guid.Parse(roomId), context.User.UserId()))
+        {
+            context.Succeed(requirement);
+        }
+
         return Task.CompletedTask;
     }
 }

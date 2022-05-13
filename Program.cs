@@ -1,14 +1,17 @@
 
-using Lib.AspNetCore.ServerSentEvents;
+using System.Text;
 
+using Lib.AspNetCore.ServerSentEvents;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Identity.Web;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Primitives;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 
 using p2p_api.Authorization;
@@ -20,17 +23,6 @@ using p2p_api.Workers;
 
 var builder = WebApplication.CreateBuilder(args);
 
-const string CorsPolicyName = "P2PApiCorsPolicy";
-var allowedCorsOrigins = builder.Configuration["AllowedCorsOrigins"]?.Split(',') ?? new string[] {};
-builder.Services.AddCors(options => {
-    options.AddPolicy(CorsPolicyName, policy =>
-    {
-        policy.AllowAnyMethod();
-        policy.AllowAnyHeader();
-        policy.WithOrigins(allowedCorsOrigins);
-    });
-});
-
 // Add services to the container.
 builder.Services.Configure<CookiePolicyOptions>(options =>
 {
@@ -39,53 +31,47 @@ builder.Services.Configure<CookiePolicyOptions>(options =>
     options.HandleSameSiteCookieCompatibility();
 });
 
+builder.Services.AddOptions();
+builder.Services.Configure<TurnCredentialsOptions>(builder.Configuration.GetSection(TurnCredentialsOptions.TurnCredentials));
+builder.Services.Configure<DatabaseWorkerOptions>(builder.Configuration.GetSection(DatabaseWorkerOptions.DatabaseWorker));
+builder.Services.Configure<RoomTokenOptions>(builder.Configuration.GetSection(RoomTokenOptions.RoomToken));
+
+const string CorsPolicyName = "P2PApiCorsPolicy";
+var allowedCorsOrigins = builder.Configuration["AllowedCorsOrigins"]?.Split(',') ?? new string[] { };
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(CorsPolicyName, policy =>
+    {
+        policy.AllowAnyMethod();
+        policy.AllowAnyHeader();
+        policy.WithOrigins(allowedCorsOrigins);
+    });
+});
+
+const string RoomTokenAuthenticationScheme = "RoomToken";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    // This api will mint its own short-lived tokens for auth to SSE api
+    .AddJwtBearer(RoomTokenAuthenticationScheme, options => {
+        var roomTokenOptions = new RoomTokenOptions();
+        builder.Configuration.Bind(RoomTokenOptions.RoomToken, roomTokenOptions);
+        options.Events = new JwtBearerEvents()
+        {
+            OnMessageReceived = RoomTokenService.TokenInUrlOnMessageReceived
+        };
+        options.TokenValidationParameters = new TokenValidationParameters()
+        {
+            ValidateIssuerSigningKey = true,
+            ValidateIssuer = true,
+            ValidateLifetime = true,
+            ValidIssuer = roomTokenOptions.Issuer,
+            ValidAudience = roomTokenOptions.Issuer,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(roomTokenOptions.Key))
+        };
+    })
     // Adds Microsoft Identity platform (Azure AD B2C) support to protect this Api
     .AddMicrosoftIdentityWebApi(options =>
     {
         builder.Configuration.Bind("AzureAdB2C", options);
-        options.TokenValidationParameters.NameClaimType = "name";
-
-        options.Events = new JwtBearerEvents()
-        {
-            OnMessageReceived = context =>
-            {
-                StringValues values;
-
-                if (!context.Request.Query.TryGetValue("access_token", out values))
-                {
-                    return Task.CompletedTask;
-                }
-
-                if (values.Count > 1)
-                {
-                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                    context.Fail(
-                        "Only one 'access_token' query string parameter can be defined. " +
-                        $"However, {values.Count:N0} were included in the request."
-                    );
-
-                    return Task.CompletedTask;
-                }
-
-                var token = values.Single();
-
-                if (String.IsNullOrWhiteSpace(token))
-                {
-                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                    context.Fail(
-                        "The 'access_token' query string parameter was defined, " +
-                        "but a value to represent the token was not included."
-                    );
-
-                    return Task.CompletedTask;
-                }
-
-                context.Token = token;
-
-                return Task.CompletedTask;
-            }
-        };
     },
     options =>
     {
@@ -94,31 +80,36 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("UserInRoom", policy => {
+    options.AddPolicy(RoomAuthorizationRequirement.Name, policy => {
+        policy.AddAuthenticationSchemes(RoomTokenAuthenticationScheme);
+        policy.RequireAuthenticatedUser();
+        policy.AddRequirements(new RoomAuthorizationRequirement());
+    });
+
+    options.AddPolicy(UserInRoomRequirement.UserInRoom, policy => {
         policy.RequireAuthenticatedUser();
         policy.AddRequirements(new UserInRoomRequirement());
     });
 });
 
+builder.Services.AddSingleton<IAuthorizationHandler, RoomAuthorizationHandler>();
 builder.Services.AddSingleton<IAuthorizationHandler, UserInRoomAuthorizationHandler>();
-builder.Services.AddSingleton<RoomsService>();
+builder.Services.AddSingleton<RoomTokenService>();
+builder.Services.AddSingleton<TurnCredentialsService>();
+builder.Services.AddSingleton<RoomService>();
 builder.Services.AddSingleton<ReferenceHolder>();
 builder.Services.AddHostedService<DatabaseWorker>();
+
 builder.Services.AddControllers();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddOptions();
-builder.Services.Configure<OpenIdConnectOptions>(builder.Configuration.GetSection("AzureAdB2C"));
-builder.Services.Configure<CredentialsOptions>(builder.Configuration.GetSection(CredentialsOptions.Credentials));
-builder.Services.Configure<DatabaseWorkerOptions>(builder.Configuration.GetSection(DatabaseWorkerOptions.DatabaseWorker));
-
 builder.Services.AddServerSentEvents(options =>
 {
-    options.OnClientConnected = RoomsService.OnClientConnected;
-    options.OnClientDisconnected = RoomsService.OnClientDisconnected;
+    options.OnClientConnected = RoomService.OnClientConnected;
+    options.OnClientDisconnected = RoomService.OnClientDisconnected;
     options.KeepaliveMode = ServerSentEventsKeepaliveMode.Always;
     options.KeepaliveInterval = 60;
 });
@@ -159,9 +150,13 @@ app.UseEndpoints(endpoints =>
         pattern: "{controller=Credentials}/{action=GetCredentials}"
     );
 
-    endpoints.MapServerSentEvents("/rooms/{roomName:required}", new ServerSentEventsOptions
+    endpoints.MapServerSentEvents("/rooms/{roomId:guid:required}", new ServerSentEventsOptions
     {
-        Authorization = ServerSentEventsAuthorization.Default,
+        //Authorization = ServerSentEventsAuthorization.Default,
+        Authorization = new ServerSentEventsAuthorization
+        {
+            Policy = RoomAuthorizationRequirement.Name
+        },
         OnPrepareAccept = response =>
         {
             response.Headers.Append("Cache-Control", "no-cache");

@@ -1,6 +1,6 @@
 namespace p2p_api.Models;
 
-public class Credentials
+public class TurnCredentials
 {
     public string Username { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
