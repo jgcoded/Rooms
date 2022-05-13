@@ -1,5 +1,5 @@
 
-namespace p2p_api.Authorization;
+namespace Rooms.Authorization;
 
 using Microsoft.AspNetCore.Authorization;
 

@@ -14,12 +14,12 @@ using Microsoft.Extensions.Primitives;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 
-using p2p_api.Authorization;
-using p2p_api.Extensions;
-using p2p_api.Models;
-using p2p_api.Providers;
-using p2p_api.Services;
-using p2p_api.Workers;
+using Rooms.Authorization;
+using Rooms.Extensions;
+using Rooms.Models;
+using Rooms.Providers;
+using Rooms.Services;
+using Rooms.Workers;
 
 var builder = WebApplication.CreateBuilder(args);
 

@@ -3,9 +3,9 @@ using System.Text;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
 
-using p2p_api.Models;
+using Rooms.Models;
 
-namespace p2p_api.Services;
+namespace Rooms.Services;
 
 public class TurnCredentialsService
 {

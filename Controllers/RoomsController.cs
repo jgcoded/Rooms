@@ -8,12 +8,12 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-using p2p_api.Authorization;
-using p2p_api.Extensions;
-using p2p_api.Models;
-using p2p_api.Services;
+using Rooms.Authorization;
+using Rooms.Extensions;
+using Rooms.Models;
+using Rooms.Services;
 
-namespace p2p_api.Controllers;
+namespace Rooms.Controllers;
 
 [ApiController]
 [Route("rooms")]

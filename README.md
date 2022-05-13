@@ -29,7 +29,7 @@ Use `dotnet build` to build.
 
 ```
 dotnet publish -r linux-x64 --self-contained false --configuration Release
-scp bin\Release\net6.0\linux-x64\publish\* turn@p2p.foo.com:/var/www/p2p-api
-ssh turn@p2p.foo.com sudo systemctl restart kestrel-p2p-api.service
-ssh turn@p2p.foo.com sudo systemctl status kestrel-p2p-api.service
+scp bin\Release\net6.0\linux-x64\publish\* turn@p2p.foo.com:/var/www/rooms
+ssh turn@p2p.foo.com sudo systemctl restart kestrel-rooms.service
+ssh turn@p2p.foo.com sudo systemctl status kestrel-rooms.service
 ```

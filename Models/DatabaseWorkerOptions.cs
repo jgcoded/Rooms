@@ -1,4 +1,4 @@
-namespace p2p_api.Models;
+namespace Rooms.Models;
 
 public class DatabaseWorkerOptions
 {

@@ -1,7 +1,7 @@
 using Lib.AspNetCore.ServerSentEvents;
-using p2p_api.Extensions;
+using Rooms.Extensions;
 
-namespace p2p_api.Providers;
+namespace Rooms.Providers;
 
 public class UserClientIdProvider : IServerSentEventsClientIdProvider
 {

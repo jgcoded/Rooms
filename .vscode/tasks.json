@@ -7,7 +7,7 @@
             "type": "process",
             "args": [
                 "build",
-                "${workspaceFolder}/p2p-api.csproj",
+                "${workspaceFolder}/Rooms.csproj",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary"
             ],
@@ -19,7 +19,7 @@
             "type": "process",
             "args": [
                 "publish",
-                "${workspaceFolder}/p2p-api.csproj",
+                "${workspaceFolder}/Rooms.csproj",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary"
             ],
@@ -33,7 +33,7 @@
                 "watch",
                 "run",
                 "--project",
-                "${workspaceFolder}/p2p-api.csproj"
+                "${workspaceFolder}/Rooms.csproj"
             ],
             "problemMatcher": "$msCompile"
         }

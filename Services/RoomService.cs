@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using Lib.AspNetCore.ServerSentEvents;
 
-using p2p_api.Extensions;
-using p2p_api.Models;
+using Rooms.Extensions;
+using Rooms.Models;
 
-namespace p2p_api.Services;
+namespace Rooms.Services;
 
 public class RoomService
 {
@@ -26,7 +26,7 @@ public class RoomService
 
         this.roomIdToOwner =  new ConcurrentDictionary<Guid, string>(
             Environment.ProcessorCount,
-            capacity: 100 // preallocate 100 rooms
+            capacity: 100 // preallocate 100 Rooms
         );
     }
 

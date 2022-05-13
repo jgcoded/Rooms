@@ -1,5 +1,5 @@
 
-namespace p2p_api.Extensions;
+namespace Rooms.Extensions;
 
 using System.Security.Claims;
 

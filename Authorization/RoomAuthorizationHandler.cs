@@ -1,10 +1,10 @@
 
 using Microsoft.AspNetCore.Authorization;
 
-using p2p_api.Models;
-using p2p_api.Services;
+using Rooms.Models;
+using Rooms.Services;
 
-namespace p2p_api.Authorization;
+namespace Rooms.Authorization;
 
 public class RoomAuthorizationHandler : AuthorizationHandler<RoomAuthorizationRequirement>
 {

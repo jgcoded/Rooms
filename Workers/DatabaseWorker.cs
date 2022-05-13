@@ -1,8 +1,8 @@
-namespace p2p_api.Workers;
+namespace Rooms.Workers;
 
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
-using p2p_api.Models;
+using Rooms.Models;
 
 /*
     This class periodically updates the shared secret between

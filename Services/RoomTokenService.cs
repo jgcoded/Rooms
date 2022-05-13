@@ -7,9 +7,9 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Primitives;
 
-using p2p_api.Models;
+using Rooms.Models;
 
-namespace p2p_api.Services;
+namespace Rooms.Services;
 
 public class RoomTokenService
 {
@@ -23,7 +23,7 @@ public class RoomTokenService
 
     public static Func<MessageReceivedContext, Task> TokenInUrlOnMessageReceived = (MessageReceivedContext context) =>
     {
-        if (!context.Request.Path.StartsWithSegments("/rooms"))
+        if (!context.Request.Path.StartsWithSegments("/Rooms"))
         {
             return Task.CompletedTask;
         }

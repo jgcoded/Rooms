@@ -9,7 +9,7 @@
     }
   },
   "profiles": {
-    "p2p_api": {
+    "Rooms": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
