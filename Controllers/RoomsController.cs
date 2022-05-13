@@ -48,7 +48,7 @@ public class RoomsController : ControllerBase
 
     [Route("")]
     [HttpPost]
-    public ActionResult PostReserveRoom()
+    public ActionResult PostReserveRoom(Guid? roomId)
     {
         string userId = User.UserId();
         string country = User.Country();
@@ -58,13 +58,33 @@ public class RoomsController : ControllerBase
             throw new UnauthorizedAccessException();
         }
 
-        Guid roomId = this.roomsService.ReserveRoom(userId);
+        string userRole = RoomService.RoomGuest;
+        if (roomId.HasValue)
+        {
+            // user wants to join the room. Check if it exists.
+            string? roomOwner = this.roomsService.GetRoomOwner(roomId.Value);
+            if (string.IsNullOrWhiteSpace(roomOwner))
+            {
+                return BadRequest();
+            }
+
+            // Don't let the room owner join their own room
+            if (userId == roomOwner)
+            {
+                return BadRequest();
+            }
+        }
+        else // create the room
+        {
+            roomId = this.roomsService.ReserveRoom(userId);
+            userRole = RoomService.RoomOwner;
+        }
 
         var claims = new RoomClaims()
         {
-            RoomId = roomId,
+            RoomId = roomId.Value,
             UserId = userId,
-            UserRole = RoomService.RoomOwner
+            UserRole = userRole
         };
 
         string jwt = this.roomsTokenService.CreateJwt(claims);
@@ -87,6 +107,7 @@ public class RoomsController : ControllerBase
 
         return Ok(new
         {
+            roomId,
             roomUrl,
             messageUrl,
             turnCredentials
