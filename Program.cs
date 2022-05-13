@@ -147,7 +147,7 @@ app.UseEndpoints(endpoints =>
 {
     endpoints.MapControllerRoute(
         name: "default",
-        pattern: "{controller=Credentials}/{action=GetCredentials}"
+        pattern: "{controller}/{action}"
     );
 
     endpoints.MapServerSentEvents("/rooms/{roomId:guid:required}", new ServerSentEventsOptions
